@@ -1,5 +1,3 @@
-#import resource
-#resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
 import sys, time
                    
 class Report_form:
