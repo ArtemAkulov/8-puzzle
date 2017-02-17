@@ -102,6 +102,7 @@ def Bfs(root, goal, report):
     expanded_nodes = 0
     parent = {tuple(root) : None}
     max_queue = 1
+    max_depth = 0
     while queue:
         current_vertex = queue.pop(0)
         if current_vertex.state == goal:
@@ -126,7 +127,8 @@ def Bfs(root, goal, report):
             report.fringe_size = 'fringe_size: ' + str(len(queue)) + '\n'
             report.max_fringe_size = 'max_fringe_size: ' + str(max_queue) + '\n'
             report.search_depth = 'search_depth: ' + str(current_vertex.depth) + '\n'
-            report.max_search_depth = 'max_search_depth: ' + str(max([k.depth for k in queue])) + '\n'
+#            report.max_search_depth = 'max_search_depth: ' + str(max([k.depth for k in queue])) + '\n'
+            report.max_search_depth = 'max_search_depth: ' + str(max_depth) + '\n'
             return True
         explored.append(current_vertex)
         visited.add(tuple(current_vertex.state))
@@ -135,11 +137,57 @@ def Bfs(root, goal, report):
             if tuple(i) not in visited:
                 parent[tuple(i)] = current_vertex.state
                 queue.append(Vertex(i, current_vertex.state, current_vertex.depth + 1, 'BFS'))
+                if queue[-1].depth > max_depth:
+                    max_depth = queue[-1].depth
                 if max_queue < len(queue):
                     max_queue = len(queue)
     return False
 
 def Dfs(root, goal, report):
+    stack = [Vertex(root, None, 0, 'DFS')]
+    explored = set()
+    backyard = set(root)
+    expanded_nodes = 0
+    parent = {tuple(root) : None}
+    max_stack = 1
+    max_depth = 0
+    while stack:
+        current_vertex = stack.pop()
+        explored.add(tuple(current_vertex.state))
+        if current_vertex.state == goal:
+            directions = {}
+            directions[-1 * current_vertex.grid_size] = 'Up'
+            directions[current_vertex.grid_size] = 'Down'
+            directions[-1] = 'Left'
+            directions[1] = 'Right'
+            route = []
+            route.append(parent[tuple(goal)])
+            while route[-1] != root:
+                route.append(parent[tuple(route[-1])])
+            route.reverse()
+            route.append(goal)
+            path = []
+            for j in range(1, len(route)):
+                direction = route[j].index(0) - route[j-1].index(0)
+                path.append(directions[direction])
+            report.path = 'path_to_goal: ' + str(path) + '\n'
+            report.path_cost = 'cost_of_path: ' + str(len(path)) + '\n'
+            report.expanded_nodes = 'nodes_expanded: ' + str(expanded_nodes) + '\n'
+            report.fringe_size = 'fringe_size: ' + str(len(stack)) + '\n'
+            report.max_fringe_size = 'max_fringe_size: ' + str(max_stack) + '\n'
+            report.search_depth = 'search_depth: ' + str(current_vertex.depth) + '\n'
+            report.max_search_depth = 'max_search_depth: ' + str(max_depth) + '\n'
+            return True
+        expanded_nodes += 1
+        for neighbour in current_vertex.neighbours:
+            if tuple(neighbour) not in explored and tuple(neighbour) not in backyard:
+                parent[tuple(neighbour)] = current_vertex.state
+                backyard.add(tuple(neighbour))
+                stack.append(Vertex(neighbour, current_vertex.state, current_vertex.depth + 1, 'DFS'))
+                if stack[-1].depth > max_depth:
+                    max_depth = stack[-1].depth
+                if max_stack < len(stack):
+                    max_stack = len(stack)
     return False
 
 def A_Star(root, goal, report):
