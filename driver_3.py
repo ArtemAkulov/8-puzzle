@@ -22,16 +22,28 @@ class Report_form:
         self.search_depth = ''
         self.max_search_depth = ''
         self.running_time = 'running_time: '
-        self.ram_usage = 'max_ram_usage: Need to set up a Linux VM'
+        self.ram_usage = 'max_ram_usage: 0'
     
 class Vertex:
-    def Hamming_distance(self, state, goal):
+    def hamming_distance(self, state, goal):
         return sum([int(state[i] != goal[i]) for i in range(0, len(state)) if state[i] != 0])
-    def Manhattan_distance(self, state, goal):
+    def manhattan_distance(self, state, goal):
         return int(sum([abs(i % self.grid_size - goal.index(state[i]) % self.grid_size) + abs(i // self.grid_size - goal.index(state[i]) // self.grid_size) for i in range(len(state)) if state[i] not in (0, goal[i])]))
-    def Set_cost_traversed(self, cost):
+    def set_traversed_cost(self, cost):
         self.traversed_cost = cost
         self.total_cost = self.traversed_cost + self.estimated_cost
+    def set_depth(self, depth):
+        self.depth = depth
+    def set_parent(self, parent):
+        self.parent = parent
+    def get_traversed_cost(self):
+        return self.traversed_cost
+    def get_vertex_cost(self):
+        return self.traversed_cost + self.estimated_cost
+    def get_depth(self):
+        return self.depth
+    def get_parent(self):
+        return self.parent
     def get_neighbours(self):
         neighbours = [[],[],[],[]]
         for i in [-1,1]:
@@ -59,8 +71,7 @@ class Vertex:
         self.parent = parent
         self.neighbours = self.get_neighbours()
         self.traversed_cost = traversed_cost
-        self.estimated_cost = 0 if self.mode != 'AST' else self.Manhattan_distance(self.state, goal)
-        self.total_cost = self.traversed_cost + self.estimated_cost
+        self.estimated_cost = 0 if self.mode != 'AST' else self.manhattan_distance(self.state, goal)
 
 def Args_valid(args_list):
     def state_solvable(initial_state):
@@ -198,10 +209,12 @@ def Dfs(root, goal, report):
                     max_stack = len(stack)
     return False
 
-def Select_minimum_cost_vertex(open_set, goal):
-    return next((i for i, item in enumerate(open_set) if item.total_cost == min([i.total_cost for i in open_set])), -1)
+def get_next_state(fringe):
+    i = min(fringe.get(vertex).get_vertex_cost() for vertex in fringe)
+    keys = [vertex for vertex, vertex_cost in fringe.items() if vertex_cost.get_vertex_cost() == i]
+    return fringe[keys[0]]
 
-def Determine_heritage(explored, state):
+def determine_heritage(explored, state):
     heritage = [state.state]
     ancestor = tuple(state.state)
     while explored[ancestor].parent != None:
@@ -211,23 +224,23 @@ def Determine_heritage(explored, state):
     return heritage
     
 def A_star(root, goal, report):
-    open_set = [Vertex(root, None, 0, 'AST', 0, goal)]
-    closed_set = []
-    temp_set = {}
     expanded_nodes = 0
     max_fringe = 1
-    while open_set:
-        current_vertex = open_set.pop(Select_minimum_cost_vertex(open_set, goal))
-        closed_set.append(current_vertex)
+    explored = {}
+    fringe = {}
+    fringe[tuple(root)] = Vertex(root, None, 0, 'AST', 0, goal)
+    while any(fringe):
+        current_vertex = get_next_state(fringe)
+        explored[tuple(current_vertex.state)] = fringe[tuple(current_vertex.state)]
         expanded_nodes += 1
-        temp_set[tuple(current_vertex.state)]=current_vertex
+        fringe.pop(tuple(current_vertex.state), None)
         if current_vertex.state == goal:
             directions = {}
             directions[-1 * current_vertex.grid_size] = 'Up'
             directions[current_vertex.grid_size] = 'Down'
             directions[-1] = 'Left'
             directions[1] = 'Right'
-            route = Determine_heritage(temp_set, current_vertex)
+            route = determine_heritage(explored, current_vertex)
             path = []
             for j in range(1, len(route)):
                 direction = route[j].index(0) - route[j-1].index(0)
@@ -235,23 +248,21 @@ def A_star(root, goal, report):
             report.path = 'path_to_goal: ' + str(path) + '\n'
             report.path_cost = 'cost_of_path: ' + str(len(path)) + '\n'
             report.expanded_nodes = 'nodes_expanded: ' + str(expanded_nodes) + '\n'
-            report.fringe_size = 'fringe_size: ' + str(len(open_set)) + '\n'
+            report.fringe_size = 'fringe_size: ' + str(len(fringe)) + '\n'
             report.max_fringe_size = 'max_fringe_size: ' + str(max_fringe) + '\n'
             report.search_depth = 'search_depth: ' + str(current_vertex.depth) + '\n'
-            report.max_search_depth = 'max_search_depth: ' + str(max([k.depth for k in closed_set])) + '\n'
-            return Determine_heritage(temp_set, current_vertex)
+            report.max_search_depth = 'max_search_depth: ' + str(max([explored[k].depth for k in explored])) + '\n'
+            return True
         for neighbour in current_vertex.neighbours:
-            if tuple(neighbour) not in temp_set: 
-                temp_set[tuple(neighbour)] = Vertex(neighbour, current_vertex.state, current_vertex.depth + 1, 'AST', current_vertex.traversed_cost + 1, goal)
-            if temp_set[tuple(neighbour)] not in closed_set:
-                if temp_set[tuple(neighbour)] not in open_set:
-                    open_set.append(Vertex(neighbour, current_vertex.state, current_vertex.depth + 1, 'AST', current_vertex.traversed_cost + 1, goal))
-                    if len(open_set) > max_fringe:
-                        max_fringe = len(open_set)
-                else:
-                    if current_vertex.traversed_cost < open_set[next((i for i, item in enumerate(open_set) if item.state == current_vertex.state), -1)].traversed_cost:
-                        open_set[next((i for i, item in enumerate(open_set) if item.state == current_vertex.state), -1)].parent = current_vertex.state
-                        open_set[next((i for i, item in enumerate(open_set) if item.state == current_vertex.state), -1)].Set_cost_traversed(current_vertex.traversed_cost + 1)
+            if tuple(neighbour) in explored or tuple(neighbour) in fringe:
+                if tuple(neighbour) in fringe and fringe[tuple(neighbour)].get_traversed_cost() > current_vertex.get_traversed_cost() + 1:
+                    fringe[tuple(neighbour)].set_traversed_cost(current_vertex.get_traversed_cost() + 1)
+                    fringe[tuple(neighbour)].set_depth(current_vertex.get_depth() + 1)
+                    fringe[tuple(neighbour)].set_parent(current_vertex.get_parent())
+            else:
+                fringe[tuple(neighbour)] = Vertex(neighbour, current_vertex.state, current_vertex.depth + 1, 'AST', current_vertex.get_traversed_cost() + 1, goal)
+                if len(fringe) > max_fringe:
+                        max_fringe = len(fringe)
     return False
 
 def ID_A_Star(root, goal, report):
