@@ -162,7 +162,7 @@ def Bfs(root, goal, report):
                     max_queue = len(queue)
     return False
 
-def Dfs(root, goal, report):
+def Dfs(root, goal, report, depth_limit = 0):
     stack = [Vertex(root, None, 0, 'DFS')]
     explored = set()
     backyard = set(root)
@@ -173,6 +173,7 @@ def Dfs(root, goal, report):
     while stack:
         current_vertex = stack.pop()
         explored.add(tuple(current_vertex.state))
+        expanding_criteria = (depth_limit == 0) or (depth_limit != 0 and depth_limit > current_vertex.depth)
         if current_vertex.state == goal:
             directions = {}
             directions[-1 * current_vertex.grid_size] = 'Up'
@@ -199,7 +200,7 @@ def Dfs(root, goal, report):
             return True
         expanded_nodes += 1
         for neighbour in current_vertex.neighbours:
-            if tuple(neighbour) not in explored and tuple(neighbour) not in backyard:
+            if tuple(neighbour) not in explored and tuple(neighbour) not in backyard and expanding_criteria:
                 parent[tuple(neighbour)] = current_vertex.state
                 backyard.add(tuple(neighbour))
                 stack.append(Vertex(neighbour, current_vertex.state, current_vertex.depth + 1, 'DFS'))
@@ -209,10 +210,29 @@ def Dfs(root, goal, report):
                     max_stack = len(stack)
     return False
 
+def udlr_priority(keys, fringe):
+    udlr = {0 : [], 1 : [], 2 : [], 3 : []}
+    for i in keys:
+        j = fringe[i].state.index(0) - fringe[i].parent.index(0)
+        if j > 0:
+            if j > 1:
+                udlr[1].append(i)
+            else:
+                udlr[3].append(i)
+        else:
+            if j < -1:
+                udlr[0].append(i)
+            else:
+                udlr[2].append(i)
+    for i in range(4):
+        if udlr[i]:
+            return fringe[udlr[i][0]]
+    return False
+
 def get_next_state(fringe):
     i = min(fringe.get(vertex).get_vertex_cost() for vertex in fringe)
     keys = [vertex for vertex, vertex_cost in fringe.items() if vertex_cost.get_vertex_cost() == i]
-    return fringe[keys[0]]
+    return fringe[keys[0]] if len(keys) == 1 else udlr_priority(keys, fringe)
 
 def determine_heritage(explored, state):
     heritage = [state.state]
@@ -232,7 +252,6 @@ def A_star(root, goal, report):
     while any(fringe):
         current_vertex = get_next_state(fringe)
         explored[tuple(current_vertex.state)] = fringe[tuple(current_vertex.state)]
-        expanded_nodes += 1
         fringe.pop(tuple(current_vertex.state), None)
         if current_vertex.state == goal:
             directions = {}
@@ -253,6 +272,7 @@ def A_star(root, goal, report):
             report.search_depth = 'search_depth: ' + str(current_vertex.depth) + '\n'
             report.max_search_depth = 'max_search_depth: ' + str(max([explored[k].depth for k in explored])) + '\n'
             return True
+        expanded_nodes += 1
         for neighbour in current_vertex.neighbours:
             if tuple(neighbour) in explored or tuple(neighbour) in fringe:
                 if tuple(neighbour) in fringe and fringe[tuple(neighbour)].get_traversed_cost() > current_vertex.get_traversed_cost() + 1:
@@ -266,6 +286,11 @@ def A_star(root, goal, report):
     return False
 
 def ID_A_Star(root, goal, report):
+    depth_limit = 1
+    while True:
+        if Dfs(root, goal, report, depth_limit):
+            return True
+        depth_limit += 1
     return False
         
 def Main():
